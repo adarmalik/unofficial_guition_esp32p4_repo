@@ -1,0 +1,155 @@
+esphome:
+  name: esp32-tab10-dev
+  friendly_name: ESP-Tab10.1-Demo
+  platformio_options:
+    board_build.flash_mode: dio
+
+esp32:
+  variant: ESP32P4
+  flash_size: 16MB
+  cpu_frequency: 400MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: yes
+
+#wifi: !include wifi.yaml // disabled to show ethernet config - disable ethernet to enable wifi
+
+ethernet:
+  type: IP101
+  mdc_pin: GPIO31
+  mdio_pin: GPIO52
+  clk: 
+    pin: GPIO50
+    mode: CLK_EXT_IN
+  phy_addr: 1
+  power_pin: GPIO51
+
+api:
+  encryption:
+    key: !secret esphome_encryption_key
+ota:
+  - platform: esphome
+    password: !secret esphome_encryption_key
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+  baud_rate: 115200
+
+debug:
+  id: debugger
+  update_interval: 5s
+
+esp_ldo:
+  - channel: 3
+    id: dsi_power_phy1_pwr
+    adjustable: False
+    voltage: 2.5V
+  - channel: 4
+    id: sd_power
+    adjustable: False
+    voltage: 2.7V
+
+psram:
+  mode: hex
+  speed: "200MHz"
+
+i2c:
+  - id: i2c_bus_a
+    sda: GPIO7
+    scl: GPIO8
+    frequency: 400kHz
+    scan: False
+
+spi:
+  - id: spi_bus_id
+    type: single
+    clk_pin: GPIO04
+    miso_pin: GPIO00
+    mosi_pin: GPIO01
+    interface: spi2
+
+light:
+  - platform: mipi_dsi
+    i2c_id: i2c_bus_a
+    id: backlight
+    pwm_register: 0x96
+    restore_mode: ALWAYS_ON
+
+display:
+  - platform: mipi_dsi
+    setup_priority: 790.0
+    model: WAVESHARE-P4-NANO-10.1 // 10.1-A display example
+    id: dsi_display
+    rotation: 270°
+    show_test_card: False
+    update_interval: 13ms
+
+touchscreen:
+  - platform: gt911
+    id: touchscreen_id
+    i2c_id: i2c_bus_a
+    update_interval: 100ms
+    transform:
+      swap_xy: True
+      mirror_y: False
+      mirror_x: True
+
+lvgl:
+    byte_order: little_endian
+  displays:
+    - dsi_display
+  
+  touchscreens:
+    - touchscreen_id
+
+switch:
+  - platform: gpio
+    pin: GPIO53 #PA-CTRL
+    name: "Speaker enable"
+    restore_mode: ALWAYS_OFF
+    id: speaker_enable_switch
+    inverted: False
+
+audio_dac:
+  - platform: es8311
+    id: es8311_codec
+    i2c_id: i2c_bus_a
+    address: 0x18
+    bits_per_sample: 16bit
+    sample_rate: 44100
+    use_mclk: True
+    use_microphone: True
+    microphone_type: analog
+    mic_gain: 24DB
+
+i2s_audio:
+  - id: i2s_output
+    i2s_lrclk_pin: GPIO10
+    i2s_bclk_pin: GPIO12
+    i2s_mclk_pin: GPIO13
+
+microphone:
+  - platform: i2s_audio
+    id: external_mic
+    i2s_audio_id: i2s_output
+    i2s_mode: primary
+    adc_type: external
+    i2s_din_pin: GPIO11
+    sample_rate: 16000
+    bits_per_channel: 16bit
+    channel: stereo
+
+speaker:
+  - platform: i2s_audio
+    i2s_audio_id: i2s_output
+    id: speaker_id
+    i2s_dout_pin: GPIO09
+    dac_type: external
+    sample_rate: 44100
+    bits_per_sample: 16bit
+    channel: left
+    audio_dac: es8311_codec
+    buffer_duration: 1000ms
+    i2s_mode: primary
